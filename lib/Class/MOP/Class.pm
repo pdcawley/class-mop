@@ -13,6 +13,7 @@ use Carp         'confess';
 use Scalar::Util 'blessed', 'reftype', 'weaken';
 use Sub::Name    'subname';
 use Devel::GlobalDestruction 'in_global_destruction';
+use List::MoreUtils 'all';
 
 our $VERSION   = '0.93';
 $VERSION = eval $VERSION;
@@ -164,18 +165,23 @@ sub update_package_cache_flag {
     $self->{'_package_cache_flag'} = Class::MOP::check_package_cache_flag($self->name);    
 }
 
-sub _check_metaclass_compatibility {
-    my $self = shift;
+## Metaclass compatibility
+{
+    my %base_metaclass = (
+        attribute_metaclass      => 'Class::MOP::Attribute',
+        method_metaclass         => 'Class::MOP::Method',
+        wrapped_method_metaclass => 'Class::MOP::Method::Wrapped',
+        instance_metaclass       => 'Class::MOP::Instance',
+        constructor_class        => 'Class::MOP::Method::Constructor',
+        destructor_class         => 'Class::MOP::Method::Destructor',
+    );
 
-    # this is always okay ...
-    return if ref($self)                eq 'Class::MOP::Class'   &&
-              $self->instance_metaclass eq 'Class::MOP::Instance';
+    sub _check_class_metaclass_compatibility {
+        my $self = shift;
+        my ( $superclass_name ) = @_;
 
-    my @class_list = $self->linearized_isa;
-    shift @class_list; # shift off $self->name
-
-    foreach my $superclass_name (@class_list) {
-        my $super_meta = Class::MOP::get_metaclass_by_name($superclass_name) || next;
+        my $super_meta = Class::MOP::get_metaclass_by_name($superclass_name)
+            || return;
 
         # NOTE:
         # we need to deal with the possibility
@@ -188,16 +194,62 @@ sub _check_metaclass_compatibility {
 
         ($self->isa($super_meta_type))
             || confess "The metaclass of " . $self->name . " ("
-                       . (ref($self)) . ")" .  " is not compatible with the " .
-                       "metaclass of its superclass, ".$superclass_name . " ("
-                       . ($super_meta_type) . ")";
+                     . (ref($self)) . ")" .  " is not compatible with "
+                     . "the metaclass of its superclass, "
+                     . $superclass_name . " (" . ($super_meta_type) . ")";
+    }
+
+    sub _check_single_metaclass_compatibility {
+        my $self = shift;
+        my ( $metaclass_type, $superclass_name ) = @_;
+
+        my $super_meta = Class::MOP::get_metaclass_by_name($superclass_name)
+            || return;
+
         # NOTE:
-        # we also need to check that instance metaclasses
-        # are compatibile in the same the class.
-        ($self->instance_metaclass->isa($super_meta->instance_metaclass))
-            || confess "The instance metaclass for " . $self->name . " (" . ($self->instance_metaclass) . ")" .
-                       " is not compatible with the " .
-                       "instance metaclass of its superclass, " . $superclass_name . " (" . ($super_meta->instance_metaclass) . ")";
+        # we need to deal with the possibility
+        # of class immutability here, and then
+        # get the name of the class appropriately
+        my $super_meta_type
+            = $super_meta->is_immutable
+            ? $super_meta->_get_mutable_metaclass_name()
+            : ref($super_meta);
+
+        my $metaclass_type_name = $metaclass_type;
+        $metaclass_type_name =~ s/_(?:meta)?class$//;
+        ($self->$metaclass_type->isa($super_meta->$metaclass_type))
+            || confess "The $metaclass_type_name metaclass for "
+                     . $self->name . " (" . ($self->$metaclass_type)
+                     . ")" . " is not compatible with the "
+                     . "$metaclass_type_name metaclass of its "
+                     . "superclass, " . $superclass_name . " ("
+                     . ($super_meta->$metaclass_type) . ")";
+    }
+
+    sub _check_metaclass_compatibility {
+        my $self = shift;
+
+        # this is always okay ...
+        return if ref($self) eq 'Class::MOP::Class'
+            && all {
+                my $meta = $self->$_;
+                !defined($meta) || $meta eq $base_metaclass{$_}
+            } keys %base_metaclass;
+
+        my @class_list = $self->linearized_isa;
+        shift @class_list; # shift off $self->name
+
+        for my $superclass_name (@class_list) {
+            $self->_check_class_metaclass_compatibility($superclass_name);
+        }
+        for my $metaclass_type (keys %base_metaclass) {
+            next unless defined $self->$metaclass_type;
+            for my $superclass_name (@class_list) {
+                $self->_check_single_metaclass_compatibility(
+                    $metaclass_type, $superclass_name
+                );
+            }
+        }
     }
 }
 

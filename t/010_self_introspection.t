@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 304;
+use Test::More tests => 308;
 use Test::Exception;
 
 use Class::MOP;
@@ -74,6 +74,7 @@ my @class_mop_class_methods = qw(
     clone_instance _clone_instance
     rebless_instance rebless_instance_away
     check_metaclass_compatibility _check_metaclass_compatibility
+    _check_class_metaclass_compatibility _check_single_metaclass_compatibility
 
     add_meta_instance_dependencies remove_meta_instance_dependencies update_meta_instance_dependencies
     add_dependent_meta_instance remove_dependent_meta_instance
