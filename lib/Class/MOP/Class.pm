@@ -206,6 +206,11 @@ sub update_package_cache_flag {
         my $super_meta = Class::MOP::get_metaclass_by_name($superclass_name)
             || return;
 
+        # for instance, Moose::Meta::Class has a destructor_class, but
+        # Class::MOP::Class doesn't - this shouldn't be an error
+        return if defined $self->$metaclass_type
+               && !defined $super_meta->$metaclass_type;
+
         my $metaclass_type_name = $metaclass_type;
         $metaclass_type_name =~ s/_(?:meta)?class$//;
         ($self->$metaclass_type->isa($super_meta->$metaclass_type))
