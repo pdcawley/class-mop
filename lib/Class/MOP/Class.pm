@@ -213,6 +213,7 @@ sub update_package_cache_flag {
 
         my $metaclass_type_name = $metaclass_type;
         $metaclass_type_name =~ s/_(?:meta)?class$//;
+        $metaclass_type_name =~ s/_/ /g;
         ($self->$metaclass_type->isa($super_meta->$metaclass_type))
             || confess "The $metaclass_type_name metaclass for "
                      . $self->name . " (" . ($self->$metaclass_type)
