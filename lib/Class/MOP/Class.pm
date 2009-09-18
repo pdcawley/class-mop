@@ -206,15 +206,6 @@ sub update_package_cache_flag {
         my $super_meta = Class::MOP::get_metaclass_by_name($superclass_name)
             || return;
 
-        # NOTE:
-        # we need to deal with the possibility
-        # of class immutability here, and then
-        # get the name of the class appropriately
-        my $super_meta_type
-            = $super_meta->is_immutable
-            ? $super_meta->_get_mutable_metaclass_name()
-            : ref($super_meta);
-
         my $metaclass_type_name = $metaclass_type;
         $metaclass_type_name =~ s/_(?:meta)?class$//;
         ($self->$metaclass_type->isa($super_meta->$metaclass_type))
