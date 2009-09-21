@@ -176,6 +176,33 @@ sub update_package_cache_flag {
         destructor_class         => 'Class::MOP::Method::Destructor',
     );
 
+    sub _check_metaclass_compatibility {
+        my $self = shift;
+
+        # this is always okay ...
+        return if ref($self) eq 'Class::MOP::Class'
+            && all {
+                my $meta = $self->$_;
+                !defined($meta) || $meta eq $base_metaclass{$_}
+            } keys %base_metaclass;
+
+        my @class_list = $self->linearized_isa;
+        shift @class_list; # shift off $self->name
+
+        for my $superclass_name (@class_list) {
+            $self->_check_class_metaclass_compatibility($superclass_name);
+        }
+
+        for my $metaclass_type (keys %base_metaclass) {
+            next unless defined $self->$metaclass_type;
+            for my $superclass_name (@class_list) {
+                $self->_check_single_metaclass_compatibility(
+                    $metaclass_type, $superclass_name
+                );
+            }
+        }
+    }
+
     sub _check_class_metaclass_compatibility {
         my $self = shift;
         my ( $superclass_name ) = @_;
@@ -221,32 +248,6 @@ sub update_package_cache_flag {
                      . "$metaclass_type_name metaclass of its "
                      . "superclass, " . $superclass_name . " ("
                      . ($super_meta->$metaclass_type) . ")";
-    }
-
-    sub _check_metaclass_compatibility {
-        my $self = shift;
-
-        # this is always okay ...
-        return if ref($self) eq 'Class::MOP::Class'
-            && all {
-                my $meta = $self->$_;
-                !defined($meta) || $meta eq $base_metaclass{$_}
-            } keys %base_metaclass;
-
-        my @class_list = $self->linearized_isa;
-        shift @class_list; # shift off $self->name
-
-        for my $superclass_name (@class_list) {
-            $self->_check_class_metaclass_compatibility($superclass_name);
-        }
-        for my $metaclass_type (keys %base_metaclass) {
-            next unless defined $self->$metaclass_type;
-            for my $superclass_name (@class_list) {
-                $self->_check_single_metaclass_compatibility(
-                    $metaclass_type, $superclass_name
-                );
-            }
-        }
     }
 }
 
